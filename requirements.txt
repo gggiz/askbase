@@ -6,3 +6,4 @@ PyMuPDF>=1.23
 python-docx>=1.0
 duckduckgo-search>=6.0
 python-jose>=3.3
+modelscope>=1.14

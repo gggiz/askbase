@@ -17,7 +17,16 @@ EMBED_MODEL_NAME = "BAAI/bge-small-zh-v1.5"
 
 # ===================== 初始化 =====================
 print("正在加载嵌入模型...")
-embed_model = SentenceTransformer(EMBED_MODEL_NAME)
+try:
+    from modelscope import snapshot_download
+    model_path = snapshot_download("BAAI/bge-small-zh-v1.5")
+    embed_model = SentenceTransformer(model_path)
+    print("（通过 ModelScope 加载模型）")
+except Exception:
+    import os
+    os.environ.setdefault("HF_ENDPOINT", "https://hf-mirror.com")
+    embed_model = SentenceTransformer(EMBED_MODEL_NAME)
+    print("（通过 HuggingFace 加载模型）")
 
 chroma_client = chromadb.PersistentClient(path="./chroma_data")
 llm_client = OpenAI(api_key=LLM_API_KEY, base_url=LLM_BASE_URL)
@@ -223,4 +232,4 @@ with gr.Blocks(title="AskBase", theme=gr.themes.Soft()) as demo:
     ask_btn.click(gradio_ask, [kb_selector, question_input, agent_toggle], [answer_output, sources_output])
 
 if __name__ == "__main__":
-    demo.launch(server_name="0.0.0.0", server_port=7860)
+    demo.launch(share=True)
