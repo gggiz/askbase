@@ -2,16 +2,11 @@
 # 单个文件，部署到 HuggingFace Spaces 即可在线使用
 # 部署后链接: https://你的用户名-askbase.hf.space
 
-import os, re, uuid, json, sys, traceback
+import os, re, uuid, json, sys
 import gradio as gr
 import fitz  # PyMuPDF
 import chromadb
 from openai import OpenAI
-
-# 必须在 sentence_transformers 导入前设置，否则 huggingface_hub 已经初始化好了
-os.environ.setdefault("HF_ENDPOINT", "https://hf-mirror.com")
-os.environ.setdefault("SENTENCE_TRANSFORMERS_HOME", os.path.expanduser("~/.cache/sentence_transformers"))
-
 from sentence_transformers import SentenceTransformer
 
 # ===================== 配置 =====================
@@ -22,34 +17,8 @@ EMBED_MODEL_NAME = "BAAI/bge-small-zh-v1.5"
 
 # ===================== 初始化 =====================
 print("正在加载嵌入模型...")
-embed_model = None
-
-# 方案1: ModelScope SDK（走 modelscope.cn，不走 HuggingFace）
-try:
-    from modelscope.hub.api import HubApi
-    api = HubApi()
-    model_path = api.snapshot_download("BAAI/bge-small-zh-v1.5")
-    print(f"ModelScope 下载成功: {model_path}")
-    embed_model = SentenceTransformer(model_path)
-    print("（通过 ModelScope 加载模型）")
-except Exception as e:
-    print(f"[ModelScope 方案失败] {type(e).__name__}: {e}")
-
-# 方案2: 直接用 SentenceTransformer（走 HF_ENDPOINT 镜像）
-if embed_model is None:
-    try:
-        embed_model = SentenceTransformer(EMBED_MODEL_NAME)
-        print("（通过 HuggingFace 镜像加载模型）")
-    except Exception as e2:
-        print(f"[HuggingFace 方案也失败] {type(e2).__name__}: {e2}")
-
-# 方案3: 所有远程方案都失败，无法启动
-if embed_model is None:
-    print("=" * 50)
-    print("错误：无法加载嵌入模型，所有方案均失败")
-    print("请检查网络连接或手动下载模型文件")
-    print("=" * 50)
-    sys.exit(1)
+embed_model = SentenceTransformer(EMBED_MODEL_NAME)
+print("嵌入模型加载完成！")
 
 chroma_client = chromadb.PersistentClient(path="./chroma_data")
 llm_client = OpenAI(api_key=LLM_API_KEY, base_url=LLM_BASE_URL)
