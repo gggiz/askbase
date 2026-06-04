@@ -3,6 +3,15 @@
 # 部署后链接: https://你的用户名-askbase.hf.space
 
 import os, re, uuid, json, sys
+
+# PyInstaller 打包后 SSL 证书修复
+import certifi
+os.environ["SSL_CERT_FILE"] = certifi.where()
+os.environ["REQUESTS_CA_BUNDLE"] = certifi.where()
+
+# 国内用户走镜像下载模型
+os.environ.setdefault("HF_ENDPOINT", "https://hf-mirror.com")
+
 import gradio as gr
 import fitz  # PyMuPDF
 import chromadb
@@ -16,12 +25,31 @@ LLM_MODEL = os.getenv("LLM_MODEL", "deepseek-chat")
 EMBED_MODEL_NAME = "BAAI/bge-small-zh-v1.5"
 
 # ===================== 初始化 =====================
-print("正在加载嵌入模型...")
-embed_model = SentenceTransformer(EMBED_MODEL_NAME)
-print("嵌入模型加载完成！")
+def init_app():
+    print("正在加载嵌入模型（首次运行需下载，约400MB，请耐心等待）...", flush=True)
+    embed_model = SentenceTransformer(EMBED_MODEL_NAME)
+    print("嵌入模型加载完成！", flush=True)
 
-chroma_client = chromadb.PersistentClient(path="./chroma_data")
-llm_client = OpenAI(api_key=LLM_API_KEY, base_url=LLM_BASE_URL)
+    print("正在初始化数据库...", flush=True)
+    chroma_client = chromadb.PersistentClient(path="./chroma_data")
+    print("数据库初始化完成！", flush=True)
+
+    if not LLM_API_KEY:
+        print("警告: 未设置 LLM_API_KEY，问答功能不可用", flush=True)
+        llm_client = None
+    else:
+        llm_client = OpenAI(api_key=LLM_API_KEY, base_url=LLM_BASE_URL)
+        print("LLM 客户端就绪", flush=True)
+    return embed_model, chroma_client, llm_client
+
+try:
+    embed_model, chroma_client, llm_client = init_app()
+except Exception as e:
+    print(f"初始化失败: {e}", flush=True)
+    import traceback
+    traceback.print_exc()
+    input("按 Enter 键退出...")
+    sys.exit(1)
 
 KB_STORE = {}  # {name: kb_id}
 
@@ -97,6 +125,8 @@ def search_kb(kb_id, query, top_k=5):
 
 # ===================== RAG 问答 =====================
 def rag_ask(kb_id, question):
+    if llm_client is None:
+        return "未设置 LLM_API_KEY 环境变量，无法调用大模型。请设置后重启。", []
     hits = search_kb(kb_id, question, top_k=5)
     context_parts = [f"[{i+1}] {h['document']}" for i, h in enumerate(hits)]
     context = "\n\n".join(context_parts)
@@ -133,6 +163,8 @@ TOOLS = [{
 TAFEI_AGENT = "你是永雏塔菲，可爱的虚拟主播！说话带'捏~'、'喵~'口癖，自称'塔菲'，叫用户'主人'。用可爱活泼的语气回答，但信息要准确。"
 
 def run_agent(question, kb_id):
+    if llm_client is None:
+        return "未设置 LLM_API_KEY 环境变量，无法调用大模型。请设置后重启。"
     messages = [
         {"role": "system", "content": TAFEI_AGENT},
         {"role": "user", "content": question},
@@ -200,8 +232,47 @@ def gradio_ask(kb_name, question, use_agent):
     return answer or "无回答", sources_text
 
 
-with gr.Blocks(title="AskBase", theme=gr.themes.Soft()) as demo:
-    gr.Markdown("# AskBase\n### 上传文档 → AI 问答 · 支持 Agent 工具调用")
+# ===================== API Key 管理 =====================
+CURRENT_API_KEY = LLM_API_KEY
+
+def gradio_set_key(api_key):
+    global llm_client, CURRENT_API_KEY
+    key = (api_key or "").strip()
+    if not key:
+        return "请输入 API Key"
+    try:
+        llm_client = OpenAI(api_key=key, base_url=LLM_BASE_URL)
+        CURRENT_API_KEY = key
+        return "API Key 设置成功！现在可以提问了"
+    except Exception as e:
+        return f"API Key 无效: {e}"
+
+
+pink_theme = gr.themes.Soft(
+    primary_hue="pink",
+    secondary_hue="rose",
+    neutral_hue="slate",
+).set(
+    body_background_fill="*neutral_50",
+    button_primary_background_fill="*primary_400",
+    button_primary_background_fill_hover="*primary_500",
+    button_primary_text_color="white",
+    block_title_text_color="*primary_600",
+)
+
+with gr.Blocks(title="AskBase", theme=pink_theme) as demo:
+    gr.Markdown("""
+    # 🎀 AskBase ～ 永雏塔菲的知识库
+    ### 上传文档 → 塔菲帮你回答！( •̀ ω •́ )✧
+    """)
+
+    # API Key 设置行
+    with gr.Row():
+        api_key_input = gr.Textbox(label="DeepSeek API Key", placeholder="输入你的 API Key...",
+                                   type="password", value=LLM_API_KEY, scale=3)
+        api_key_btn = gr.Button("设置 Key", variant="secondary", scale=1)
+    api_key_status = gr.Markdown("" if LLM_API_KEY else "⚠️ 请先设置 API Key，否则无法提问")
+
     with gr.Row():
         with gr.Column(scale=1):
             gr.Markdown("### 知识库")
@@ -219,9 +290,25 @@ with gr.Blocks(title="AskBase", theme=gr.themes.Soft()) as demo:
             answer_output = gr.Markdown("等待提问...")
             sources_output = gr.Markdown("")
 
+    api_key_btn.click(gradio_set_key, [api_key_input], [api_key_status])
     create_btn.click(gradio_create_kb, [kb_input], [kb_status, kb_selector])
     upload_btn.click(gradio_upload, [kb_selector, file_upload], [kb_status])
     ask_btn.click(gradio_ask, [kb_selector, question_input, agent_toggle], [answer_output, sources_output])
 
 if __name__ == "__main__":
-    demo.launch(share=True)
+    try:
+        print("============================================", flush=True)
+        print("  AskBase 启动中...", flush=True)
+        print("  打开浏览器访问: http://127.0.0.1:7860", flush=True)
+        print("  按 Ctrl+C 退出", flush=True)
+        print("============================================", flush=True)
+        demo.launch(share=False, server_name="127.0.0.1", server_port=7860,
+                    inbrowser=True, show_error=True)
+    except KeyboardInterrupt:
+        print("\n已退出", flush=True)
+    except Exception as e:
+        print(f"启动失败: {e}", flush=True)
+        import traceback
+        traceback.print_exc()
+    finally:
+        input("按 Enter 键退出...")

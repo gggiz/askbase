@@ -1,0 +1,7 @@
+__pycache__/
+build/
+dist/
+chroma_data/
+*.pyc
+*.pyo
+.env
