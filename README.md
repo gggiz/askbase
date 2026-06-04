@@ -19,14 +19,9 @@
 
 ## 📥 下载
 
-> ⚠️ 安装包约 400MB（压缩后），GitHub 仓库仅包含源码，EXE 通过网盘分发。
+前往 [GitHub Releases](https://github.com/gggiz/askbase/releases) 下载最新版 `AskBase.zip`（约 340MB）。
 
-| 方式 | 链接 | 备注 |
-|------|------|------|
-| 百度网盘 | [点击下载](#) *(链接待更新)* | 提取码见 Release 说明 |
-| GitHub Releases | [Releases 页面](https://github.com/gggiz/askbase/releases) | 待上传 |
-
-下载后解压 `AskBase.zip`，得到 `AskBase/` 文件夹，里面就是可运行的程序。
+解压后得到 `AskBase/` 文件夹，双击 `AskBase.exe` 即用，无需安装。
 
 ---
 
