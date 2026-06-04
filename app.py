@@ -1,6 +1,5 @@
 # AskBase — RAG + Agent 智能问答系统
-# 单个文件，部署到 HuggingFace Spaces 即可在线使用
-# 部署后链接: https://你的用户名-askbase.hf.space
+# Windows 桌面应用，PyInstaller 打包为 EXE，双击即用
 
 import os, re, uuid, json, sys
 
@@ -186,7 +185,22 @@ def run_agent(question, kb_id):
             elif tc.function.name == "calculator":
                 expr = re.sub(r"[^\d+\-*/().%\s^]", "", args.get("expression", ""))
                 try:
-                    result = str(eval(expr, {"__builtins__": {}}, {}))
+                    import ast, operator
+                    ops = {
+                        ast.Add: operator.add, ast.Sub: operator.sub,
+                        ast.Mult: operator.mul, ast.Div: operator.truediv,
+                        ast.Pow: operator.pow, ast.Mod: operator.mod,
+                        ast.USub: operator.neg, ast.UAdd: operator.pos,
+                    }
+                    def _eval(node):
+                        if isinstance(node, ast.Constant):
+                            return node.value
+                        if isinstance(node, ast.BinOp):
+                            return ops[type(node.op)](_eval(node.left), _eval(node.right))
+                        if isinstance(node, ast.UnaryOp):
+                            return ops[type(node.op)](_eval(node.operand))
+                        raise ValueError("不支持的运算")
+                    result = str(_eval(ast.parse(expr, mode="eval").body))
                 except Exception as e:
                     result = f"计算错误: {e}"
             else:
