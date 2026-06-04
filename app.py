@@ -260,7 +260,7 @@ pink_theme = gr.themes.Soft(
     block_title_text_color="*primary_600",
 )
 
-with gr.Blocks(title="AskBase", theme=pink_theme) as demo:
+with gr.Blocks(title="AskBase") as demo:
     gr.Markdown("""
     # 🎀 AskBase ～ 永雏塔菲的知识库
     ### 上传文档 → 塔菲帮你回答！( •̀ ω •́ )✧
@@ -302,7 +302,7 @@ if __name__ == "__main__":
         print("  打开浏览器访问: http://127.0.0.1:7860", flush=True)
         print("  按 Ctrl+C 退出", flush=True)
         print("============================================", flush=True)
-        demo.launch(share=False, server_name="127.0.0.1", server_port=7860,
+        demo.launch(share=False, theme=pink_theme, server_name="127.0.0.1", server_port=7860,
                     inbrowser=True, show_error=True)
     except KeyboardInterrupt:
         print("\n已退出", flush=True)
